@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 function MongoClient() {
   this.options = {
-    connectTimeoutMS: 30000, // Increase the connection timeout to 30 seconds
+    connectTimeoutMS: 30000,
     socketTimeoutMS: 30000,
   };
 }
@@ -11,7 +11,7 @@ function MongoClient() {
 MongoClient.prototype.initialize = async function () {
   mongoose
     .connect(process.env.DB_URL, this.options)
-    .then(() => log.yellow('Database connected 🧬'))
+    .then(() => log.yellow('Database connected 🧬 \n---------------------------------'))
     .catch(error => {
       throw error;
     });

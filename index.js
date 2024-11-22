@@ -12,7 +12,7 @@ const _ = require('./globals/lib/helper');
     // await getIp();
     console.log('\n---------------------------------');
     await mongodb.initialize();
-    // await redis.initialize();
+    await redis.initialize();
     // router.initialize();
     // queue.initialize();
     // socket.initialize(router.httpServer);
