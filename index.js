@@ -1,5 +1,4 @@
 require('dotenv').config();
-// require('dotenv').config({ path: './dev.env' });
 require('./globals');
 
 const { mongodb, redis, getIp, queue } = require('./app/utils');
@@ -13,9 +12,9 @@ const _ = require('./globals/lib/helper');
     console.log('\n---------------------------------');
     await mongodb.initialize();
     await redis.initialize();
-    // router.initialize();
+    router.initialize();
     // queue.initialize();
-    // socket.initialize(router.httpServer);
+    socket.initialize(router.httpServer);
   } catch (err) {
     log.blue(':-(');
     log.red(`reason: ${err.message}, stack: ${err.stack}`);

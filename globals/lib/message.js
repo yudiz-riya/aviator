@@ -31,6 +31,7 @@ const customMessages = {
   const notifications = {};
   
   const builder = {
+    wrong_credentials: prefix => builder.prepare(403, prefix, 'Invalid credentials.'),
     invalid_req: prefix => builder.prepare(406, prefix, 'invalid Request'),
     wrong_otp: prefix => builder.prepare(403, prefix, 'entered OTP is invalid'),
     wrong_format: prefix => builder.prepare(403, prefix, 'wrong format'),

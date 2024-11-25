@@ -5,6 +5,8 @@ const helmet = require('helmet');
 const cors = require('cors');
 const compression = require('compression');
 const morgan = require('morgan');
+const authRoutes = require('./auth')
+const gameRoutes = require('./game');
 
 class Router {
     constructor() {
@@ -50,7 +52,7 @@ class Router {
         this.app.use(this.routeConfig);
         this.app.use(express.static('./seeds'));
 
-        this.app.use('/api/v1/admin', adminRoutes);
+        this.app.use('/api/v1/auth', authRoutes);
         this.app.use('/api/v1/game', gameRoutes);
 
         this.app.use('*', this.routeHandler);

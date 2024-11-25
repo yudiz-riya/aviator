@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const axios = require('axios');
@@ -289,6 +290,17 @@ _.generateRandomDiceRolls = function(targetSum, nMoves) {
 
     return diceRolls;
 }
+
+_.encryptPassword = function(password) {
+       if (!password) {
+           throw new Error('Password is required for encryption');
+       }
+       return bcrypt.hashSync(password, 10); // Hash the password with bcrypt
+   }
+
+_.comparePassword = function(plainPassword, hashedPassword) {
+       return bcrypt.compareSync(plainPassword, hashedPassword); // Compare the plain password with the hashed password
+   }
 
 _.shuffle = function(array) {
   let currentIndex = array.length;
