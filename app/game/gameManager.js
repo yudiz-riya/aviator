@@ -1,7 +1,12 @@
 const GameRounds = require('../models/lib/GameRounds');
 const emitter = require('../../globals/lib/emitter');
 const mongoose = require('mongoose');
+// const redis = require('redis');
+const { createClient } = require('redis');
+const client = createClient();
 
+client.on('connect', () => console.log('Connected to Redis'));
+client.on('error', (err) => console.error('Redis error:', err));
 class AviatorGameManager {
     constructor() {
         this.aGames = {}; 
@@ -12,12 +17,18 @@ class AviatorGameManager {
     }
 
     async startGame() {
+        if (!client.isOpen) {
+            await client.connect();
+        }
+        console.log('Redis client connected:', client.isOpen);
+
         const gameId = new mongoose.Types.ObjectId().toString(); 
+        console.log(`Starting game with ID: ${gameId}`);
     
         const randomDuration = Math.floor(Math.random() * (120000 - 60000 + 1)) + 60000;
         console.log(`Game ${gameId} will run for a random duration of ${randomDuration / 1000} seconds.`);
 
-        this.aGames[gameId] = {
+        const gameData = {
             id: gameId,
             status: 'waiting',
             players: [],
@@ -30,28 +41,42 @@ class AviatorGameManager {
             tenPercentThreshold: 0,
             finished: false
         };
+
+        await client.set(`game:${gameId}`, JSON.stringify(gameData), { EX: 60 });
+        console.log(`Set game data in Redis for game ID: ${gameId}`);
+
+        const gameDataFromRedis = await client.get(`game:${gameId}`);
+        console.log(`Retrieved game data from Redis: ${gameDataFromRedis}`);
+        this.aGames[gameId] = JSON.parse(gameDataFromRedis);
     
         this.aGames[gameId].tenPercentThreshold = this.aGames[gameId].totalBets * 0.10;
         console.log(`10% of total bets: ${this.aGames[gameId].tenPercentThreshold}`);
     
         emitter.emit('gameStartingSoon', { gameId, players: this.aGames[gameId].players });
     
-        setTimeout(() => {
-            this.aGames[gameId].status = 'in-progress';
-            this.aGames[gameId].startTime = Date.now(); 
-            console.log(`Game ${gameId} started. It will finish in ${randomDuration / 1000} seconds.`);
+        setTimeout(() => this.startGameCountdown(gameId, randomDuration), 3000);
+
+        // setTimeout(() => {
+        //     this.aGames[gameId].status = 'in-progress';
+        //     this.aGames[gameId].startTime = Date.now(); 
+        //     console.log(`Game ${gameId} started. It will finish in ${randomDuration / 1000} seconds.`);
             
-            this.aGames[gameId].tenPercentThreshold = this.aGames[gameId].totalBets * 0.10;
-            console.log(`Updated 10% of total bets: ${this.aGames[gameId].tenPercentThreshold}`);
+        //     this.aGames[gameId].tenPercentThreshold = this.aGames[gameId].totalBets * 0.10;
+        //     console.log(`Updated 10% of total bets: ${this.aGames[gameId].tenPercentThreshold}`);
     
-            this.increaseMultiplier(gameId); 
+        //     this.increaseMultiplier(gameId); 
     
-            setTimeout(() => {
-                this.finishGame(gameId);
-            }, randomDuration);
-        }, 3000);
+        //     setTimeout(() => {
+        //         this.finishGame(gameId);
+        //     }, randomDuration);
+        // }, 3000);
     
         return gameId;
+    }
+
+    async getGame(gameId) {
+        const gameData = await client.get(`game:${gameId}`);
+        return JSON.parse(gameData);
     }
 
     async placeBet({ gameId, userId, amount }) {
@@ -193,6 +218,25 @@ class AviatorGameManager {
                     this.finishGame(gameId);
                 }
             }, 1000);
+        }
+    }
+
+    startGameCountdown(gameId, duration) {
+        const game = this.aGames[gameId];
+        if (game) {
+            game.status = 'in-progress';
+            game.startTime = Date.now();
+            console.log(`Game ${gameId} started. It will finish in ${duration / 1000} seconds.`);
+            
+            // Call increaseMultiplier or any other logic here
+            this.increaseMultiplier(gameId);
+
+            // Set a timeout to finish the game after the duration
+            setTimeout(() => {
+                this.finishGame(gameId);
+            }, duration);
+        } else {
+            console.log(`Game ${gameId} not found.`);
         }
     }
 
