@@ -1,4 +1,4 @@
-const GameRounds  = require('../models/lib/GameRounds');
+const GameRounds = require('../models/lib/GameRounds');
 const emitter = require('../../globals/lib/emitter');
 const mongoose = require('mongoose');
 
@@ -14,73 +14,158 @@ class AviatorGameManager {
     async startGame() {
         const gameId = new mongoose.Types.ObjectId().toString(); 
     
-        let randomDuration;
-        const isLongGame = Math.random() < 0.2; 
-        console.log('isLongGame:::', isLongGame);
+        const randomDuration = Math.floor(Math.random() * (120000 - 60000 + 1)) + 60000;
+        console.log(`Game ${gameId} will run for a random duration of ${randomDuration / 1000} seconds.`);
 
-        if (isLongGame) {
-            randomDuration = Math.floor(Math.random() * (30000 - 10000 + 1)) + 10000; 
-        } else {
-            randomDuration = Math.floor(Math.random() * (5000 - 2000 + 1)) + 1000; 
-        }
-    
-        const newGame = new GameRounds({ _id: gameId, multiplier: 1.01, status: 'in-progress' });
-    
-        await newGame.save();
-    
         this.aGames[gameId] = {
             id: gameId,
-            status: 'in-progress',
+            status: 'waiting',
             players: [],
+            totalBets: 0,
+            totalWithdrawn: 0,
             multiplier: 1.0,
-            startTime: Date.now(),
+            startTime: null,
             endTime: null,
-            intervalId: null 
+            intervalId: null,
+            tenPercentThreshold: 0,
+            finished: false
         };
     
-        console.log(`Game ${gameId} started. It will finish in ${randomDuration / 1000} seconds.`);
+        this.aGames[gameId].tenPercentThreshold = this.aGames[gameId].totalBets * 0.10;
+        console.log(`10% of total bets: ${this.aGames[gameId].tenPercentThreshold}`);
     
-        this.increaseMultiplier(gameId); 
+        emitter.emit('gameStartingSoon', { gameId, players: this.aGames[gameId].players });
     
         setTimeout(() => {
-            this.finishGame(gameId);
-        }, randomDuration);
-
+            this.aGames[gameId].status = 'in-progress';
+            this.aGames[gameId].startTime = Date.now(); 
+            console.log(`Game ${gameId} started. It will finish in ${randomDuration / 1000} seconds.`);
+            
+            this.aGames[gameId].tenPercentThreshold = this.aGames[gameId].totalBets * 0.10;
+            console.log(`Updated 10% of total bets: ${this.aGames[gameId].tenPercentThreshold}`);
+    
+            this.increaseMultiplier(gameId); 
+    
+            setTimeout(() => {
+                this.finishGame(gameId);
+            }, randomDuration);
+        }, 3000);
+    
         return gameId;
     }
 
     async placeBet({ gameId, userId, amount }) {
         const game = this.aGames[gameId]; 
-        if (!game || game.status !== 'in-progress') {
+        if (!game || (game.status !== 'in-progress' && game.status !== 'waiting')) {
             console.log('Game not found or not in progress');
             return { error: 'Game not found or not in progress' }; 
         }
     
-        let player = game.players.find(p => p.userId === userId);
-        if (!player) {
-            player = { userId, amount: 0 };
-            game.players.push(player); 
+        const existingPlayer = game.players.find(p => p.userId === userId);
+        if (existingPlayer) {
+            console.log(`User ${userId} has already placed a bet in game ${gameId}.`);
+            return { error: 'You have already placed a bet in this game.' }; 
         }
     
-        player.amount += amount; 
+        const player = { userId, amount };
+        game.players.push(player);
+        game.totalBets += amount; 
     
-        console.log(`User ${userId} placed a bet of ${amount} on game ${gameId}`);
+        game.tenPercentThreshold = game.totalBets * 0.10; 
+        console.log(`User ${userId} placed a bet of ${amount} on game ${gameId}. Total bets: ${game.totalBets}`);
+        console.log(`Updated 10% of total bets: ${game.tenPercentThreshold}`); 
+    
+        if (!game.smallestBet || amount < game.smallestBet) {
+            game.smallestBet = amount; 
+            console.log(`Updated smallest bet to: ${game.smallestBet}`);
+        }
+    
         return { success: true, game };
     }
-
+    
     async cashOut({ gameId, userId }) {
         const game = this.aGames[gameId];
-        if (!game || game.status !== 'in-progress') {
-            console.log('Game not found or not in progress');
-            return;
+            if (!game) {
+                console.log('Game not found');
+                return { error: 'Game not found' };
+            }
+            
+            if (game.status !== 'in-progress') {
+                console.log(`Game status is ${game.status}. Cannot cash out.`);
+                return { error: 'Game not in progress' };
+            }
+            
+            const player = game.players.find(p => p.userId === userId);
+            if (!player) {
+                console.log(`User ${userId} has not placed a bet in game ${gameId}`);
+                return { error: 'Player not found in this game' };
+            }
+            
+            const totalAmount = game.totalBets - game.totalWithdrawn;
+            console.log(`Total amount remaining before cashout: ${totalAmount}`);
+            
+            if (totalAmount < game.smallestBet) {
+                console.log(`Total amount remaining is less than the smallest bet (${game.smallestBet}). Ending game.`);
+                io.emit('gameCrashed', { 
+                    gameId,
+                    reason: 'Total amount is below the smallest bet',
+                    multiplier: game.multiplier
+                });
+                this.finishGame(gameId);
+                return { error: 'Total amount is below the smallest bet. Game has ended.' };
+            }
+        
+            if (totalAmount <= game.tenPercentThreshold) {
+                console.log(`Total amount has reached or fallen below 10% of total bets. Cashout not allowed.`);
+                return { error: 'Cashout not allowed, total amount is below 10% of total bets.' };
+            }
+        
+        const payout = player.amount * game.multiplier;
+        
+        if (payout > totalAmount) {
+            console.log(`Payout of ${payout} exceeds total amount available for cashout: ${totalAmount}.`);
+            console.log(`Ending game due to insufficient funds for cashout.`);
+            this.finishGame(gameId);
+            return { error: 'Insufficient funds for cashout. Game has ended.' };
         }
-
-        const player = game.players.find(p => p.userId === userId);
-        if (player) {
-            const payout = player.amount * game.multiplier;
-            console.log(`User ${userId} cashed out with payout: ${payout}`);
+        
+        console.log(`User ${userId} cashed out with payout: ${payout}`);
+        
+        game.totalWithdrawn += payout;
+        console.log(`Total withdrawn updated: ${game.totalWithdrawn}`);
+        
+        const newTotalAmount = game.totalBets - game.totalWithdrawn;
+        console.log(`Total amount remaining after cashout: ${newTotalAmount}`);
+        
+        console.log(`Current 10% threshold: ${game.tenPercentThreshold}`);
+        
+        if (newTotalAmount <= game.tenPercentThreshold) {
+            console.log(`Total amount has reached or fallen below 10% of total bets. Ending game.`);
+            this.finishGame(gameId);
         } else {
-            console.log(`User ${userId} has not placed a bet in game ${gameId}`);
+            console.log(`Total amount is above 10% of total bets. Game continues.`);
+        }
+    
+        return {
+            winnings: payout,
+            multiplier: game.multiplier,
+            betAmount: player.amount
+        };
+    }
+
+    checkGameState(gameId) {
+        const game = this.aGames[gameId];
+        if (!game) return;
+
+        const totalAmount = game.totalBets - game.totalWithdrawn;
+        
+        if (totalAmount < game.smallestBet) {
+            io.emit('gameCrashed', { 
+                gameId,
+                reason: 'Total amount is below the smallest bet',
+                multiplier: game.multiplier
+            });
+            this.finishGame(gameId);
         }
     }
 
@@ -89,12 +174,23 @@ class AviatorGameManager {
 
         if (game && game.status === 'in-progress') {
             game.intervalId = setInterval(() => {
-                game.multiplier += 0.01; 
+                game.multiplier += 0.01;
+                
+                const totalAmount = game.totalBets - game.totalWithdrawn;
+                if (totalAmount < game.smallestBet) {
+                    io.emit('gameCrashed', { 
+                        gameId,
+                        reason: 'Total amount is below the smallest bet',
+                        multiplier: game.multiplier
+                    });
+                    this.finishGame(gameId);
+                    return;
+                }
 
                 console.log(`Current multiplier for game ${gameId}: ${game.multiplier.toFixed(2)}x`);
 
-                if (game.multiplier >= 2.0) { 
-                    this.finishGame(gameId); 
+                if (game.multiplier >= 2.0) {
+                    this.finishGame(gameId);
                 }
             }, 1000);
         }
@@ -103,6 +199,7 @@ class AviatorGameManager {
     async finishGame(gameId) {
         const game = this.aGames[gameId];
         if (game) {
+            game.finished = true;
             game.status = 'finished'; 
             game.endTime = Date.now(); 
 
@@ -111,10 +208,22 @@ class AviatorGameManager {
                 game.intervalId = null; 
             }
 
-            await GameRounds.updateOne({ _id: gameId }, { status: 'finished', multiplier: game.multiplier, endTime: game.endTime });
+            const totalAdminProfit = game.totalBets - game.totalWithdrawn;
+            console.log(`Total admin profit for game ${gameId}: ${totalAdminProfit}`);
+
+            await GameRounds.updateOne({ _id: gameId }, { 
+                status: 'finished', 
+                multiplier: game.multiplier, 
+                endTime: game.endTime, 
+                totalAdminProfit 
+            });
 
             console.log(`Game ${gameId} finished. Start Time: ${game.startTime}, End Time: ${game.endTime}`);
             console.log(`Game ${gameId} has finished with final multiplier: ${game.multiplier.toFixed(2)}x.`);
+
+            io.emit('gameFinished', { gameId, multiplier: game.multiplier });
+        } else {
+            console.log(`Game ${gameId} has already been finished.`);
         }
     }
     

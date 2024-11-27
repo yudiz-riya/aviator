@@ -32,47 +32,29 @@ controllers.cashOut = async (req, res) => {
     try {
         console.log('Request Body:', req.body); 
 
-        const game = gameManager.aGames[gameId]; 
-        if (!game) {
-            return res.reply({ code: 404, message: 'Game not found' });
+        // Call the cashOut method from gameManager
+        const result = await gameManager.cashOut({ gameId, userId });
+
+        // Check if the result has an error
+        if (result.error) {
+            console.log(result.error);
+            return res.status(403).json({ code: 403, message: result.error });
         }
 
-        console.log('Game Data:', game); 
-
-        if (game.status !== 'in-progress') {
-            return res.reply({ code: 403, message: 'Cannot cash out, the game has ended' });
-        }
-
-        const player = game.players.find(p => p.userId === userId);
-        if (!player) {
-            return res.reply({ code: 404, message: 'Player not found in this game' });
-        }
-
-        console.log('Player Data:', player); 
-
-        if (player.amount <= 0) {
-            return res.reply({ code: 400, message: 'No bet placed by the user' });
-        }
-
-        console.log('Player Amount:', player.amount);
-        console.log('Game Multiplier:', game.multiplier);
-
-        const winnings = player.amount * game.multiplier; 
-
-        console.log('Winnings:', winnings);
-
+        // If cashOut is successful, send the winnings back
+        const winnings = result.winnings; // Assuming you modify the cashOut method to return winnings
         return res.status(200).json({
             code: 200,
             message: 'Cashed out successfully',
             data: {
                 winnings,
-                multiplier: game.multiplier,
-                betAmount: player.amount
+                multiplier: result.multiplier,
+                betAmount: result.betAmount
             }
         });
     } catch (error) {
         log.error('Error during cash out:', error);
-        return res.reply({ code: 500, message: 'Error during cash out' });
+        return res.status(500).json({ code: 500, message: 'Error during cash out' });
     }
 };
 
