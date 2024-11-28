@@ -32,17 +32,14 @@ controllers.cashOut = async (req, res) => {
     try {
         console.log('Request Body:', req.body); 
 
-        // Call the cashOut method from gameManager
         const result = await gameManager.cashOut({ gameId, userId });
 
-        // Check if the result has an error
         if (result.error) {
             console.log(result.error);
             return res.status(403).json({ code: 403, message: result.error });
         }
 
-        // If cashOut is successful, send the winnings back
-        const winnings = result.winnings; // Assuming you modify the cashOut method to return winnings
+        const winnings = result.winnings; 
         return res.status(200).json({
             code: 200,
             message: 'Cashed out successfully',

@@ -1,0 +1,81 @@
+* {
+  box-sizing: border-box; /* Apply box-sizing to all elements */
+  margin: 0; /* Remove default margin */
+  padding: 0; /* Remove default padding */
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background: #1a1a1a;
+  color: white;
+  height: 100vh; /* Set body height to 100% of the viewport height */
+  overflow: hidden; /* Prevent scrolling */
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  background: #333;
+  height: 60px; /* Fixed height for the header */
+}
+
+.game-container {
+  display: flex;
+  flex-direction: row; /* Keep items in a row */
+  height: calc(100vh - 60px); /* Full height minus header height */
+  padding: 0 20px; /* Horizontal padding */
+  overflow: hidden; /* Prevent overflow */
+}
+
+.graph {
+  flex: 1; /* Allow the graph to take available space */
+  max-width: 70%; /* Set a max width */
+  height: 100%; /* Full height of the container */
+  background: #222;
+  border-radius: 10px;
+  padding: 20px;
+  overflow: hidden; /* Prevent overflow */
+}
+
+.betting-panel {
+  flex: 1; /* Allow the betting panel to take available space */
+  max-width: 20%; /* Set a max width */
+  height: 100%; /* Full height of the container */
+  background: #222;
+  padding: 20px;
+  border-radius: 10px;
+  overflow: hidden; /* Prevent overflow */
+}
+
+.player-list {
+  flex: 1; /* Allow the player list to take available space */
+  max-width: 20%; /* Set a max width */
+  height: 100%; /* Full height of the container */
+  background: #222;
+  padding: 20px;
+  border-radius: 10px;
+  overflow: hidden; /* Prevent overflow */
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .game-container {
+      flex-direction: column; /* Stack items vertically on small screens */
+  }
+
+  .graph, .betting-panel, .player-list {
+      max-width: 100%; /* Allow full width on small screens */
+      flex: 1 1 100%; /* Allow full width on small screens */
+      height: auto; /* Allow height to adjust automatically */
+  }
+}
+
+.betting-controls input,
+.betting-controls button {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  padding: 10px;
+  font-size: 16px;
+}

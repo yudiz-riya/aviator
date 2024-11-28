@@ -23,7 +23,7 @@ class Router {
 
     async initialize() {
         this.setupMiddleware();
-        this.setupServer();
+        // this.setupServer();
     }
 
     setupMiddleware() {
@@ -60,11 +60,11 @@ class Router {
         this.app.use(this.errorHandler);
     }
 
-    setupServer() {
-        this.httpServer = http.Server(this.app);
-        this.httpServer.timeout = 300000;
-        this.httpServer.listen(process.env.PORT, '0.0.0.0', () => log.green(`Spinning on ${process.env.PORT}`));
-    }
+    // setupServer() {
+    //     this.httpServer = http.Server(this.app);
+    //     this.httpServer.timeout = 300000;
+    //     this.httpServer.listen(process.env.PORT, '0.0.0.0', () => log.green(`Spinning on ${process.env.PORT}`));
+    // }
 
     routeConfig(req, res, next) {
         req.sRemoteAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
